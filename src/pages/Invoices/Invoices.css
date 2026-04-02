@@ -1,0 +1,45 @@
+.module-tabs {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1rem;
+}
+
+.module-tabs button {
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+}
+
+.module-tabs button.active {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.module-tabs button:hover:not(.active) {
+  background: var(--surface-hover);
+}
+
+.amount-cell {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.amount-cell.balance { color: var(--danger); font-weight: 700; }
+
+.grn-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Specific highlighting for Paid vs Unpaid */
+.badge-success { background: #d1fae5; color: #065f46; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-danger { background: #fee2e2; color: #991b1b; }
+.badge-info { background: #dbeafe; color: #1e40af; }
