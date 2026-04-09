@@ -196,9 +196,9 @@ const Dashboard = () => {
           icon={Users}
           accentColor="#6366f1"
           bgGradient="linear-gradient(135deg,#6366f1,#4338ca)"
-          trend="up" trendValue={5.2}
+          trend="up" trendValue={0}
           subtitle="New Leads"
-          trendData={[12, 15, 13, 18, 22, 20]}
+          trendData={[]}
         />
         <StatCard
           title="Quotations"
@@ -206,9 +206,9 @@ const Dashboard = () => {
           icon={FileText}
           accentColor="#f59e0b"
           bgGradient="linear-gradient(135deg,#f59e0b,#d97706)"
-          trend="up" trendValue={12.4}
+          trend="up" trendValue={0}
           subtitle="Active Bids"
-          trendData={[8, 12, 10, 15, 14, 18]}
+          trendData={[]}
         />
         <StatCard
           title="Purchase Orders"
@@ -216,9 +216,9 @@ const Dashboard = () => {
           icon={FilePlus}
           accentColor="#3b82f6"
           bgGradient="linear-gradient(135deg,#3b82f6,#1e3a8a)"
-          trend="up" trendValue={8.4}
+          trend="up" trendValue={0}
           subtitle="Customer POs"
-          trendData={[10, 14, 12, 20, 18, 25]}
+          trendData={[]}
         />
         <StatCard
           title="Work Orders"
@@ -226,49 +226,49 @@ const Dashboard = () => {
           icon={ClipboardCheck}
           accentColor="#10b981"
           bgGradient="linear-gradient(135deg,#10b981,#065f46)"
-          trend="up" trendValue={12.1}
+          trend="up" trendValue={0}
           subtitle="In Production"
-          trendData={[5, 8, 7, 12, 10, 15]}
+          trendData={[]}
         />
         <StatCard
           title="Payment"
-          value={`₹${(totalCollected / 1000).toFixed(1)}k`}
+          value={totalCollected > 0 ? `₹${(totalCollected / 1000).toFixed(1)}k` : '₹0'}
           icon={Wallet}
           accentColor="#8b5cf6"
           bgGradient="linear-gradient(135deg,#8b5cf6,#6d28d9)"
-          trend="up" trendValue={15.3}
+          trend="up" trendValue={0}
           subtitle="Total Collected"
-          trendData={[15, 20, 18, 25, 30, 22]}
+          trendData={[]}
         />
         <StatCard
           title="Total"
-          value={`₹${(totalValue / 1000).toFixed(1)}k`}
+          value={totalValue > 0 ? `₹${(totalValue / 1000).toFixed(1)}k` : '₹0'}
           icon={IndianRupee}
           accentColor="#06b6d4"
           bgGradient="linear-gradient(135deg,#06b6d4,#0891b2)"
-          trend="up" trendValue={10.2}
+          trend="up" trendValue={0}
           subtitle="Invoiced Value"
-          trendData={[40, 45, 50, 48, 55, 60]}
+          trendData={[]}
         />
         <StatCard
           title="Pending"
-          value={`₹${(pendingRevenue / 1000).toFixed(1)}k`}
+          value={pendingRevenue > 0 ? `₹${(pendingRevenue / 1000).toFixed(1)}k` : '₹0'}
           icon={AlertCircle}
           accentColor="#ef4444"
           bgGradient="linear-gradient(135deg,#ef4444,#991b1b)"
-          trend="down" trendValue={3.3}
+          trend="down" trendValue={0}
           subtitle="Outstanding"
-          trendData={[20, 18, 15, 12, 10, 8]}
+          trendData={[]}
         />
         <StatCard
           title="Credited"
-          value={`₹${(settledAmount / 1000).toFixed(1)}k`}
+          value={settledAmount > 0 ? `₹${(settledAmount / 1000).toFixed(1)}k` : '₹0'}
           icon={CheckCircle2}
           accentColor="#10b981"
           bgGradient="linear-gradient(135deg,#10b981,#064e3b)"
-          trend="up" trendValue={7.8}
+          trend="up" trendValue={0}
           subtitle="Verified Funds"
-          trendData={[10, 12, 15, 18, 20, 25]}
+          trendData={[]}
         />
       </div>
 

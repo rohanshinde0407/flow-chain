@@ -6,16 +6,11 @@ import {
   Clock, 
   CheckCircle2, 
   User, 
-  ArrowRight,
-  MoreVertical,
-  Download,
-  ChevronDown,
-  Edit2,
   Trash2,
-  AlertTriangle,
-  X,
-  Wallet,
-  IndianRupee
+  Plus,
+  Edit2,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import DataTablePagination from '../../components/common/DataTablePagination';
@@ -28,25 +23,18 @@ import {
   TableHeader, 
   TableRow 
 } from '../../components/ui/table';
+import WODetailModal from './WODetailModal';
+import WOCreateModal from './WOCreateModal';
+import WODeleteModal from './WODeleteModal';
 
 const WorkOrderList = () => {
-  const { workOrders, purchaseOrders, addManualWorkOrder, updateWorkOrder, updateWorkOrderStatus, selectedWorkOrderId, setSelectedWorkOrderId, deleteWorkOrder, productionUsers } = useApp();
+  const { invoices, workOrders, purchaseOrders, addWorkOrder, addManualWorkOrder, updateWorkOrder, updateWorkOrderStatus, selectedWorkOrderId, setSelectedWorkOrderId, deleteWorkOrder, productionUsers } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedWO, setSelectedWO] = useState(null);
   const [showManualCreate, setShowManualCreate] = useState(false);
-  const [newWO, setNewWO] = useState({
-    customer: '',
-    partName: '',
-    poId: '',
-    poNumber: '',
-    assignedUser: '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: '',
-    deliveryDate: ''
-  });
 
   // Auto-select and scroll to WO from external deep links
   React.useEffect(() => {
@@ -61,7 +49,7 @@ const WorkOrderList = () => {
     }
   }, [selectedWorkOrderId, workOrders, setSelectedWorkOrderId]);
 
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(8);
   const statusOptions = ['All', 'Pending', 'In Progress', 'On Hold', 'Completed'];
 
   const filteredWorkOrders = (workOrders || []).filter(wo => {
@@ -111,10 +99,38 @@ const WorkOrderList = () => {
     switch (status) {
       case 'Completed': return 'success';
       case 'In Progress': return 'info';
+      case 'Invoiced': return 'secondary';
+      case 'Paid': return 'success';
       case 'Pending': return 'warning';
       case 'On Hold': return 'danger';
       default: return 'info';
     }
+  };
+
+  const getWorkflowStage = (wo) => {
+    const linkedInvoices = (invoices || []).filter(inv => inv.linkedWO === wo.id);
+    const taxInv = linkedInvoices.find(inv => inv.type === 'Tax');
+    const piInv = linkedInvoices.find(inv => inv.type === 'Proforma');
+
+    if (taxInv) {
+      if (taxInv.status === 'Completed & Closed') return { label: 'Completed', color: '#059669', bg: '#ecfdf5' };
+      if (taxInv.grnStatus === 'Received') return { label: 'GRN Received', color: '#059669', bg: '#ecfdf5' };
+      if (taxInv.pendingAmount <= 0) return { label: 'Payment Received', color: '#10b981', bg: '#f0fdf4' };
+      return { label: 'Tax Invoiced', color: '#6366f1', bg: '#eef2ff' };
+    }
+    
+    if (piInv) {
+      if (piInv.status === 'Converted to Tax Invoice') return { label: 'Tax Pending', color: '#6366f1', bg: '#eef2ff' };
+      if (piInv.amountReceived > 0) return { label: 'Advance Paid', color: '#10b981', bg: '#f0fdf4' };
+      return { label: 'PI Generated', color: '#818cf8', bg: '#f5f3ff' };
+    }
+
+    if (wo.status === 'Completed') return { label: 'Production Done', color: '#10b981', bg: '#f0fdf4' };
+    if (wo.status === 'In Progress') return { label: 'In Production', color: '#2563eb', bg: '#eff6ff' };
+    
+    if (wo.poNumber && wo.poNumber !== 'DIRECT') return { label: 'PO Received', color: '#f59e0b', bg: '#fffbeb' };
+    
+    return { label: 'Order Queued', color: '#64748b', bg: '#f8fafc' };
   };
 
   return (
@@ -160,7 +176,7 @@ const WorkOrderList = () => {
           </div>
         </div>
 
-        <div className="flex-1 w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-in">
+        <div className="fc-table-container">
           <Table className="min-w-[1200px]">
             <TableHeader>
               <TableRow>
@@ -171,10 +187,11 @@ const WorkOrderList = () => {
                 <TableHead className="w-[180px] text-center">Customer</TableHead>
                 <TableHead className="w-[180px] text-center">Assigned To</TableHead>
                 <TableHead className="w-[140px] text-center">Total Value</TableHead>
-                <TableHead className="w-[200px] text-center">Progress</TableHead>
+                <TableHead className="w-[140px] text-center">GRN Status</TableHead>
+                <TableHead className="w-[180px] text-center">Progress</TableHead>
                 <TableHead className="w-[160px] text-center">Delivery Metrics</TableHead>
-                <TableHead className="w-[160px] text-center">Status</TableHead>
-                <TableHead className="w-[120px] text-center">Actions</TableHead>
+                <TableHead className="w-[180px] text-center">Status / Stage</TableHead>
+                <TableHead className="w-[100px] text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,8 +205,8 @@ const WorkOrderList = () => {
                 paginatedWorkOrders.map((wo, index) => (
                   <TableRow 
                     key={wo.id} 
-                    className={`transition-all ${
-                      selectedWO?.id === wo.id ? 'bg-primary-light/40 border-l-4 border-l-primary' : 
+                    className={`cursor-pointer transition-all hover:bg-slate-50/80 ${
+                      selectedWO?.id === wo.id ? 'bg-indigo-50/30' : 
                       wo.status === 'Completed' ? 'bg-green-50/10' : 
                       wo.status === 'On Hold' ? 'bg-rose-50/20' : ''
                     }`}
@@ -213,12 +230,35 @@ const WorkOrderList = () => {
                         <span className="text-xs font-medium text-center">{wo.assignedUser || wo.assignedTo || 'Unassigned'}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center font-mono font-medium text-slate-700">
-                      ₹{(wo.totalAmount || 0).toLocaleString('en-IN')}
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="font-mono font-bold text-slate-800 text-sm">
+                          ₹{(wo.totalAmount || 0).toLocaleString('en-IN')}
+                        </span>
+                        {wo.partSubtotal > 0 ? (
+                          <span className="text-[9px] font-semibold text-slate-400 leading-tight text-center">
+                            ₹{wo.partSubtotal.toLocaleString('en-IN')} + 18% GST
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-semibold text-slate-300">incl. GST</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const inv = (invoices || []).find(i => i.linkedWO === wo.id && i.type === 'Tax');
+                        if (inv?.grnStatus === 'Received') {
+                          return <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded text-[10px] font-bold"><Check size={10}/> {inv.grnNumber}</div>;
+                        }
+                        if (inv) {
+                          return <span className="text-[10px] font-bold text-slate-400 italic">Expected</span>;
+                        }
+                        return <span className="text-[10px] font-bold text-slate-300">N/A</span>;
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center items-center w-full">
-                        <div className="w-[140px] space-y-1.5 flex flex-col items-center">
+                        <div className="w-[120px] space-y-1.5 flex flex-col items-center">
                           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div 
                               className={`h-full transition-all duration-500 ${
@@ -228,8 +268,8 @@ const WorkOrderList = () => {
                               style={{ width: wo.status === 'Completed' ? '100%' : wo.status === 'In Progress' ? '50%' : '10%' }}
                             ></div>
                           </div>
-                          <span className="text-[10px] font-bold text-slate-500 text-center">
-                            {wo.status === 'Completed' ? 'TASK DONE' : wo.status === 'In Progress' ? 'PRODUCTION ONGOING' : 'QUEUED'}
+                          <span className="text-[10px] font-bold text-slate-500 text-center uppercase">
+                            {wo.status === 'Completed' ? 'Manuf. Done' : wo.status === 'In Progress' ? 'In Shop' : 'Queued'}
                           </span>
                         </div>
                       </div>
@@ -244,19 +284,32 @@ const WorkOrderList = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                       <div className="status-select-wrapper">
-                        <select 
-                          className="status-dropdown-premium px-3 py-1 text-[10px]"
-                          style={getStatusStyle(wo.status)}
-                          value={wo.status}
-                          onChange={(e) => updateWorkOrderStatus(wo.id, e.target.value)}
-                        >
-                          {statusOptions.filter(o => o !== 'All').map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={10} className="status-chevron text-slate-400" />
-                      </div>
+                       <div className="flex flex-col items-center gap-2">
+                          {(() => {
+                            const stage = getWorkflowStage(wo);
+                            return (
+                              <span 
+                                className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
+                                style={{ color: stage.color, backgroundColor: stage.bg, border: `1px solid ${stage.color}20` }}
+                              >
+                                {stage.label}
+                              </span>
+                            );
+                          })()}
+                          <div className="status-select-wrapper scale-90">
+                            <select 
+                              className="status-dropdown-premium px-2 py-0.5 text-[9px]"
+                              style={getStatusStyle(wo.status)}
+                              value={wo.status}
+                              onChange={(e) => updateWorkOrderStatus(wo.id, e.target.value)}
+                            >
+                              {statusOptions.filter(o => o !== 'All').map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                            <ChevronDown size={8} className="status-chevron text-slate-400" />
+                          </div>
+                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -281,278 +334,42 @@ const WorkOrderList = () => {
               )}
             </TableBody>
           </Table>
+          <DataTablePagination 
+            currentPage={currentPage}
+            totalItems={filteredWorkOrders.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </div>
-
-        <DataTablePagination 
-          currentPage={currentPage}
-          totalItems={filteredWorkOrders.length}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-        />
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmId && (
-        <div className="modal-overlay">
-          <div className="modal-content glass confirmation-modal">
-            <div className="confirmation-icon"><AlertTriangle size={32} /></div>
-            <h2>Confirm WO Deletion</h2>
-            <p className="text-muted mb-6">Are you sure you want to delete Work Order <strong>{deleteConfirmId}</strong>? This will remove production tracking for this part.</p>
-            <div className="form-actions" style={{ justifyContent: 'center' }}>
-              <button className="btn-outline" onClick={() => setDeleteConfirmId(null)}>Cancel</button>
-              <button className="btn btn-danger" style={{ backgroundColor: '#ef4444', color: 'white' }} onClick={() => {
-                deleteWorkOrder(deleteConfirmId);
-                setDeleteConfirmId(null);
-              }}>Yes, Delete Record</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Modals ──────────────────────────────────────── */}
+      <WODeleteModal
+        workOrderId={deleteConfirmId}
+        onConfirm={(id) => deleteWorkOrder(id)}
+        onClose={() => setDeleteConfirmId(null)}
+      />
 
-      {/* WO Detail / Project Management Sidebar - MOVED OUTSIDE ANIMATED CONTAINER */}
       {selectedWO && (
-        <div className="side-panel show glass">
-          <div className="panel-header">
-            <h3>Management: {selectedWO.id}</h3>
-            <button className="icon-btn" onClick={() => setSelectedWO(null)}><X size={20} /></button>
-          </div>
-          
-          <div className="panel-content">
-            <div className="grid grid-cols-2 gap-3 mb-4">
-               <div className="bg-slate-50 p-2 rounded border border-slate-200 flex flex-col items-center justify-center">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase mb-0.5"><IndianRupee size={10} className="inline mr-1"/>Total Value</span>
-                  <span className="text-sm font-mono font-bold text-slate-800">₹{(selectedWO.totalAmount || 0).toLocaleString('en-IN')}</span>
-               </div>
-               <div className="bg-emerald-50 p-2 rounded border border-emerald-200 flex flex-col items-center justify-center">
-                  <span className="text-[10px] text-emerald-600 font-bold uppercase mb-0.5"><Wallet size={10} className="inline mr-1"/>Credited</span>
-                  <span className="text-sm font-mono font-bold text-emerald-700">₹{(selectedWO.amountReceived || 0).toLocaleString('en-IN')}</span>
-               </div>
-            </div>
-
-            <div className="panel-section">
-              <label>Production Assignment</label>
-              <select 
-                className="form-input"
-                value={selectedWO.assignedUser || selectedWO.assignedTo || ''} 
-                onChange={(e) => {
-                  updateWorkOrder(selectedWO.id, { assignedUser: e.target.value });
-                  setSelectedWO({...selectedWO, assignedUser: e.target.value});
-                }}
-              >
-                <option value="">-- Unassigned --</option>
-                {productionUsers.map(u => <option key={u} value={u}>{u}</option>)}
-              </select>
-            </div>
-
-            <div className="panel-section">
-              <label>Work Order Status</label>
-              <select 
-                className="form-input"
-                value={selectedWO.status} 
-                onChange={(e) => {
-                  updateWorkOrder(selectedWO.id, { status: e.target.value });
-                  setSelectedWO({...selectedWO, status: e.target.value});
-                }}
-              >
-                <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
-                <option value="On Hold">On Hold</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </div>
-
-            <div className="panel-section-grid">
-               <div className="form-group">
-                 <label>Start Date</label>
-                 <input 
-                   type="date" 
-                   className="form-input" 
-                   value={selectedWO.startDate || ''}
-                   onChange={(e) => {
-                     updateWorkOrder(selectedWO.id, { startDate: e.target.value });
-                     setSelectedWO({...selectedWO, startDate: e.target.value});
-                   }}
-                 />
-               </div>
-               <div className="form-group">
-                 <label>Delivery Target</label>
-                 <input 
-                   type="date" 
-                   className="form-input" 
-                   value={selectedWO.deliveryDate || selectedWO.expectedCompletionDate || ''}
-                   onChange={(e) => {
-                     updateWorkOrder(selectedWO.id, { deliveryDate: e.target.value });
-                     setSelectedWO({...selectedWO, deliveryDate: e.target.value});
-                   }}
-                 />
-               </div>
-            </div>
-
-            <div className="panel-section">
-              <label>Remarks / Notes</label>
-              <textarea 
-                className="panel-textarea"
-                rows="4"
-                placeholder="Add admin remarks here..."
-                value={selectedWO.remarks || ''}
-                onChange={(e) => {
-                  updateWorkOrder(selectedWO.id, { remarks: e.target.value });
-                  setSelectedWO({...selectedWO, remarks: e.target.value});
-                }}
-              ></textarea>
-            </div>
-
-            <div className="panel-section">
-              <label>Process Tracking</label>
-              <div className="process-checklist">
-                {(selectedWO.process || []).map((step, idx) => (
-                  <div key={idx} className="process-item">
-                    <input 
-                      type="checkbox" 
-                      checked={step.status === 'Completed'}
-                      onChange={() => {
-                        const newProcess = [...selectedWO.process];
-                        newProcess[idx].status = newProcess[idx].status === 'Completed' ? 'Pending' : 'Completed';
-                        newProcess[idx].time = new Date().toISOString();
-                        updateWorkOrder(selectedWO.id, { process: newProcess });
-                        setSelectedWO({...selectedWO, process: newProcess});
-                      }}
-                    />
-                    <span className={step.status === 'Completed' ? 'done' : ''}>{step.label}</span>
-                    {step.time && <span className="step-time">{new Date(step.time).toLocaleTimeString()}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button className="btn btn-primary btn-full mt-4" onClick={() => alert('Work Order report generated!')}>
-              <Download size={18} /> Download Report
-            </button>
-          </div>
-        </div>
+        <WODetailModal
+          wo={selectedWO}
+          productionUsers={productionUsers || []}
+          onClose={() => setSelectedWO(null)}
+          onUpdate={(id, patch) => updateWorkOrder(id, patch)}
+          onUpdateStatus={(id, status) => updateWorkOrderStatus(id, status)}
+        />
       )}
 
-      {/* Manual Create Modal */}
       {showManualCreate && (
-        <div className="modal-overlay">
-          <div className="modal-content glass" style={{ maxWidth: '600px' }}>
-            <div className="flex justify-between items-center mb-4">
-              <h2>Manual Work Order Create</h2>
-              <button className="icon-btn" onClick={() => setShowManualCreate(false)}><X size={20} /></button>
-            </div>
-
-            <div className="form-grid-2">
-              <div className="form-group">
-                <label>Customer Name</label>
-                <input 
-                  type="text" 
-                  required
-                  className="form-input" 
-                  value={newWO.customer}
-                  onChange={(e) => setNewWO({...newWO, customer: e.target.value})}
-                />
-              </div>
-              <div className="form-group">
-                <label>Part Name</label>
-                <input 
-                  type="text" 
-                  required
-                  className="form-input"
-                  value={newWO.partName}
-                  onChange={(e) => setNewWO({...newWO, partName: e.target.value})}
-                />
-              </div>
-            </div>
-            
-            <div className="form-group mt-3">
-              <label>Link to Purchase Order (Optional)</label>
-              <div className="flex gap-2">
-                <select 
-                  className="form-input"
-                  value={newWO.poId}
-                  onChange={(e) => {
-                    const po = purchaseOrders.find(p => p.id === e.target.value);
-                    setNewWO({...newWO, poId: e.target.value, poNumber: po?.poNumber || ''});
-                  }}
-                >
-                  <option value="">No PO Link (Direct Order)</option>
-                  {purchaseOrders.map(po => <option key={po.id} value={po.id}>{po.poNumber || po.id} - {po.customerName}</option>)}
-                </select>
-                {newWO.poNumber && <span className="badge-pill info">{newWO.poNumber}</span>}
-              </div>
-            </div>
-
-            <div className="form-grid-2 mt-3">
-              <div className="form-group">
-                <label>Assign Technician</label>
-                <select 
-                  className="form-input"
-                  value={newWO.assignedUser}
-                  onChange={(e) => setNewWO({...newWO, assignedUser: e.target.value})}
-                >
-                  <option value="">-- Assign To --</option>
-                  {productionUsers.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Start Date</label>
-                <input 
-                  type="date" 
-                  className="form-input"
-                  value={newWO.startDate}
-                  onChange={(e) => setNewWO({...newWO, startDate: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="form-grid-2 mt-3">
-              <div className="form-group">
-                <label>Target End Date</label>
-                <input 
-                  type="date" 
-                  className="form-input"
-                  value={newWO.endDate}
-                  onChange={(e) => setNewWO({...newWO, endDate: e.target.value})}
-                />
-              </div>
-              <div className="form-group">
-                <label>Committed Delivery</label>
-                <input 
-                  type="date" 
-                  className="form-input"
-                  value={newWO.deliveryDate}
-                  onChange={(e) => setNewWO({...newWO, deliveryDate: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="form-actions mt-6">
-              <button className="btn-outline" onClick={() => setShowManualCreate(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => {
-                addManualWorkOrder({
-                  ...newWO,
-                  status: 'Pending',
-                  date: new Date().toISOString()
-                });
-                setShowManualCreate(false);
-                // Reset form
-                setNewWO({
-                  customer: '',
-                  partName: '',
-                  poId: '',
-                  poNumber: '',
-                  assignedUser: '',
-                  startDate: new Date().toISOString().split('T')[0],
-                  endDate: '',
-                  deliveryDate: ''
-                });
-              }}>
-                <ClipboardCheck size={18} /> Confirm Order
-              </button>
-            </div>
-          </div>
-        </div>
+        <WOCreateModal
+          purchaseOrders={purchaseOrders || []}
+          productionUsers={productionUsers || []}
+          onConfirm={(data) => addWorkOrder(data)}
+          onClose={() => setShowManualCreate(false)}
+        />
       )}
+
     </div>
   );
 };

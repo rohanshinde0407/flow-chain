@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   X,
   Eye,
-  FileText
+  FileText,
+  CheckCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import DataTablePagination from '../../components/common/DataTablePagination';
@@ -32,13 +33,14 @@ const EnquiryList = ({ onNavigate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(8);
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [prepQuote, setPrepQuote] = useState(null); // Preparatory Quote Modal
   const [activeMenuId, setActiveMenuId] = useState(null);
+  const [viewEnquiry, setViewEnquiry] = useState(null);
   
   const [formData, setFormData] = useState({
     customerName: '',
@@ -175,7 +177,7 @@ const EnquiryList = ({ onNavigate }) => {
         </div>
       </div>
 
-      <div className="flex-1 w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-in">
+      <div className="fc-table-container">
         <Table className="min-w-[1100px]">
           <TableHeader>
             <TableRow>
@@ -200,11 +202,12 @@ const EnquiryList = ({ onNavigate }) => {
               paginatedEnquiries.map((enq, index) => (
                 <TableRow 
                   key={enq.id} 
-                  className={`transition-all ${
+                  className={`cursor-pointer transition-all hover:bg-slate-50/80 ${
                     enq.status === 'New' ? 'bg-blue-50/10' : 
                     enq.status === 'Quoted' ? 'bg-green-50/10' : 
                     enq.status === 'Archived' ? 'opacity-60 grayscale-[0.5]' : ''
                   }`}
+                  onClick={() => setViewEnquiry(enq)}
                 >
                   <TableCell className="text-center font-medium text-muted-foreground">
                     {(currentPage - 1) * itemsPerPage + index + 1}
@@ -251,7 +254,7 @@ const EnquiryList = ({ onNavigate }) => {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
                       {enq.status === 'Quoted' ? (
                         <button 
                           className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
@@ -269,68 +272,27 @@ const EnquiryList = ({ onNavigate }) => {
                           <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-emerald-600 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Create Quotation</span>
                         </button>
                       )}
+                      <button 
+                        className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(enq);
+                        }}
+                      >
+                        <Edit2 size={18} />
+                        <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-indigo-600 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Edit Record</span>
+                      </button>
                       
-                      <div className="relative ml-1">
-                        <button 
-                          className="relative group inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuId(activeMenuId === enq.id ? null : enq.id);
-                          }}
-                        >
-                          <MoreVertical size={18} />
-                          <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-slate-800 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Options</span>
-                        </button>
-                        
-                        {activeMenuId === enq.id && (
-                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1 flex flex-col items-stretch text-left overflow-hidden animate-in fade-in slide-in-from-top-2">
-                            <button 
-                              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full text-left"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(enq);
-                              }}
-                            >
-                              <Edit2 size={14} className="text-slate-400" /> Edit Details
-                            </button>
-                            {enq.status !== 'Archived' && (
-                              <button 
-                                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50 transition-colors w-full text-left"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateEnquiryStatus(enq.id, 'Under Analysis');
-                                  setActiveMenuId(null);
-                                }}
-                              >
-                                <AlertTriangle size={14} className="text-amber-500" /> Mark for Analysis
-                              </button>
-                            )}
-                            {enq.status !== 'Archived' ? (
-                              <button 
-                                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full text-left"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  archiveEnquiry(enq.id);
-                                  setActiveMenuId(null);
-                                }}
-                              >
-                                <Layers size={14} className="text-slate-400" /> Archive Enquiry
-                              </button>
-                            ) : (
-                              <button 
-                                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors w-full text-left"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteConfirmId(enq.id);
-                                  setActiveMenuId(null);
-                                }}
-                              >
-                                <Trash2 size={14} className="text-rose-500" /> Delete Permanent
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <button 
+                        className="relative group inline-flex h-8 w-8 items-center justify-center text-rose-300 hover:text-rose-600 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(enq.id);
+                        }}
+                      >
+                        <Trash2 size={18} />
+                        <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-rose-600 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Delete Record</span>
+                      </button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -338,14 +300,14 @@ const EnquiryList = ({ onNavigate }) => {
             )}
           </TableBody>
         </Table>
+        <DataTablePagination 
+          currentPage={currentPage}
+          totalItems={filteredEnquiries.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+        />
       </div>
-
-      <DataTablePagination 
-        currentPage={currentPage}
-        totalItems={filteredEnquiries.length}
-        itemsPerPage={itemsPerPage}
-        onPageChange={setCurrentPage}
-      />
 
       {/* Preparatory Quote Modal */}
       {prepQuote && (
@@ -377,70 +339,213 @@ const EnquiryList = ({ onNavigate }) => {
 
       {/* Modal Form */}
       {showForm && (
-        <div className="modal-overlay">
-          <div className="modal-content glass">
-            <h2>{isEditing ? 'Edit Enquiry' : 'Add New Enquiry'}</h2>
-            <form onSubmit={handleSubmit} className="enquiry-form">
-              <div className="form-group">
-                <label>Customer Name</label>
-                <input 
-                  required 
-                  type="text" 
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({...formData, customerName: e.target.value})}
-                />
+        <div className="modal-overlay" style={{ background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(4px)' }}>
+          <div className="modal-content glass" style={{ maxWidth: '640px', padding: '2.5rem' }}>
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">{isEditing ? 'Edit Enquiry' : 'New Project Enquiry'}</h2>
+                <p className="text-sm text-slate-500 mt-1">Capture customer requirements to begin the project lifecycle.</p>
               </div>
-              <div className="form-group">
-                <label>Company</label>
-                <input 
-                  required 
-                  type="text" 
-                  value={formData.company}
-                  onChange={(e) => setFormData({...formData, company: e.target.value})}
-                />
-              </div>
-              <div className="form-row">
+              <button className="close-panel-btn" onClick={() => { setShowForm(false); setIsEditing(false); }}><X size={20} /></button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="form-group">
-                  <label>Email</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Customer Name</label>
+                  <input 
+                    required 
+                    type="text" 
+                    placeholder="e.g. John Wick"
+                    className="form-input"
+                    value={formData.customerName}
+                    onChange={(e) => setFormData({...formData, customerName: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Company</label>
+                  <input 
+                    required 
+                    type="text" 
+                    placeholder="e.g. Continental Hotels"
+                    className="form-input"
+                    value={formData.company}
+                    onChange={(e) => setFormData({...formData, company: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Email Contact</label>
                   <input 
                     required 
                     type="email" 
+                    placeholder="john@hotel.com"
+                    className="form-input"
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                   />
                 </div>
                 <div className="form-group">
-                  <label>Phone</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Phone Number</label>
                   <input 
                     required 
                     type="tel" 
+                    placeholder="+91-1234567890"
+                    className="form-input"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   />
                 </div>
               </div>
+
               <div className="form-group">
-                <label>Parts Count</label>
-                <input 
-                  type="number" 
-                  min="1"
-                  value={formData.partsCount}
-                  onChange={(e) => setFormData({...formData, partsCount: parseInt(e.target.value)})}
-                />
-              </div>
-              <div className="form-group">
-                <label>Requirement Description</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Requirement Description</label>
                 <textarea 
                   rows="4"
+                  required
+                  placeholder="Detail the technical specifications, quantity, and urgency..."
+                  className="form-input bg-slate-50"
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                 ></textarea>
               </div>
-              <div className="form-actions">
-                <button type="button" className="btn-outline" onClick={() => { setShowForm(false); setIsEditing(false); setEditId(null); }}>Cancel</button>
-                <button type="submit" className="btn btn-primary">{isEditing ? 'Update Enquiry' : 'Save Enquiry'}</button>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Initial Item Count</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    className="form-input"
+                    value={formData.partsCount}
+                    onChange={(e) => setFormData({...formData, partsCount: parseInt(e.target.value)})}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" className="btn-outline flex-1 py-3" onClick={() => { setShowForm(false); setIsEditing(false); }}>Discard</button>
+                <button type="submit" className="btn btn-primary flex-1 py-3 font-black tracking-tight">{isEditing ? 'Update Enquiry' : 'Save Enquiry'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Enquiry Detail View Modal - Standardized Premium Visiting Card V9 */}
+      {viewEnquiry && (
+        <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(10px)' }}>
+          <div className="modal-content bg-white shadow-2xl animate-in fade-in zoom-in duration-300" style={{ maxWidth: '420px', padding: '2.5rem', borderRadius: '1.5rem', overflow: 'hidden', border: '1px solid #e2e8f0', position: 'relative' }}>
+            
+            {/* Top Close Button */}
+            <button 
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-all z-20" 
+              onClick={() => setViewEnquiry(null)}
+            >
+              <X size={18} />
+            </button>
+
+            {/* Visiting Card Header Section */}
+            <div className="mb-10 text-start">
+              <h2 className="text-2xl font-black tracking-tight text-slate-900 leading-tight mb-1">
+                {viewEnquiry.customerName}
+              </h2>
+              <p className="text-indigo-600 font-bold uppercase tracking-widest text-[10px]">{viewEnquiry.company}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">{viewEnquiry.id}</span>
+              </div>
+            </div>
+
+            {/* Section-wise Information Layout */}
+            <div className="space-y-8 mb-10">
+              
+              {/* Section 1: Contact Identity */}
+              <div className="space-y-4">
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Contact Identity</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Mail size={14} className="text-slate-400" />
+                    <span className="text-sm font-bold text-slate-700">{viewEnquiry.email}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Smartphone size={14} className="text-slate-400" />
+                    <span className="text-sm font-bold text-slate-700">{viewEnquiry.phone}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Project Timeline */}
+              <div className="space-y-4">
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Project Timeline</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider">Submitted On</span>
+                    <span className="text-sm font-bold text-slate-700">{formatDate(viewEnquiry.date)}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider">Status</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getStatusStyle(viewEnquiry.status).color }}></div>
+                      <span className="text-sm font-black uppercase tracking-widest" style={{ color: getStatusStyle(viewEnquiry.status).color }}>{viewEnquiry.status}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Technical Briefing (No border design) */}
+              <div className="space-y-4">
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Technical Briefing</p>
+                <div className="border-t border-slate-50 pt-2">
+                  <p className="text-sm text-slate-600 italic leading-relaxed">
+                    "{viewEnquiry.description || "No specific technical requirements documented."}"
+                  </p>
+                  <div className="mt-4 flex items-center gap-2 text-slate-400">
+                    <Layers size={12} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">{viewEnquiry.partsCount} Item Scope</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Action Section - Compact Buttons V9 */}
+            <div className="pt-6 border-t border-slate-50 space-y-3">
+              {viewEnquiry.status !== 'Quoted' ? (
+                <button 
+                  className="w-full h-11 text-white rounded-lg font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-lg shadow-slate-900/10 flex items-center justify-center gap-3"
+                  style={{ backgroundColor: '#0f172a' }}
+                  onClick={() => {
+                    setPrepQuote(viewEnquiry);
+                    setViewEnquiry(null);
+                  }}
+                >
+                  Confirm & Continue
+                </button>
+              ) : (
+                <button 
+                  className="w-full h-11 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-lg font-bold text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center"
+                  onClick={() => setViewEnquiry(null)}
+                >
+                  Close Inquiry
+                </button>
+              )}
+              
+              <button 
+                className="w-full py-3 bg-transparent text-slate-500 hover:text-slate-900 font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-start gap-4"
+                onClick={() => {
+                  handleEdit(viewEnquiry);
+                  setViewEnquiry(null);
+                }}
+              >
+                <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
+                  <Edit2 size={14} />
+                </div>
+                <span>Refine details</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}
