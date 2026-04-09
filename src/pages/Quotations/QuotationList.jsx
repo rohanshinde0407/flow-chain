@@ -3,13 +3,14 @@ import { Search, Filter, Plus, FileText, ArrowRight, ChevronDown, Edit2, Trash2,
 import { useApp } from '../../context/AppContext';
 import DataTablePagination from '../../components/common/DataTablePagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import './Enquiries.css';
 const QuotationList = ({ onSelect }) => {
   const { quotations, updateQuotationStatus, deleteQuotation } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(8);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -87,7 +88,7 @@ const QuotationList = ({ onSelect }) => {
         </div>
       </div>
 
-      <div className="flex-1 w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-in">
+      <div className="fc-table-container">
         <Table className="min-w-[1000px]">
           <TableHeader>
             <TableRow>
@@ -109,13 +110,13 @@ const QuotationList = ({ onSelect }) => {
               </TableRow>
             ) : (
               paginatedQuotations.map((q, index) => (
-                <TableRow 
-                  key={q.id} 
-                  className={`cursor-pointer transition-all ${
-                    q.status.includes('PO') ? 'bg-green-50/20' : 
-                    q.status.includes('Work Order') ? 'bg-blue-50/20' : 
+                <TableRow
+                  key={q.id}
+                  className={`cursor-pointer transition-all hover:bg-slate-50/80 ${
+                    q.status.includes('PO') ? 'bg-green-50/20' :
+                    q.status.includes('Work Order') ? 'bg-blue-50/20' :
                     q.status.includes('Rejected') ? 'bg-rose-50/10' : ''
-                  }`} 
+                  }`}
                   onClick={() => onSelect(q.id)}
                 >
                   <TableCell className="text-center font-medium text-muted-foreground">
@@ -138,15 +139,15 @@ const QuotationList = ({ onSelect }) => {
                       <span className="text-xs font-semibold text-muted-foreground uppercase text-center">{q.company}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-bold amount-inr pr-4">
-                    {(Number(q.totalAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <TableCell className="font-bold text-right pr-4">
+                    ₹{(Number(q.totalAmount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+                  <TableCell className="whitespace-nowrap text-xs font-medium text-muted-foreground text-center">
                     {formatDate(q.date)}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="status-select-wrapper">
-                      <select 
+                      <select
                         className="status-dropdown-premium px-3 py-1 text-[10px]"
                         style={getStatusStyle(q.status)}
                         value={q.status}
@@ -161,19 +162,19 @@ const QuotationList = ({ onSelect }) => {
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button 
-                        className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-slate-700 transition-colors" 
-                        onClick={() => onSelect(q.id)} 
+                      <button
+                        className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                        onClick={() => onSelect(q.id)}
                       >
                         <Edit2 size={18} />
                         <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-slate-800 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Edit Quote</span>
                       </button>
-                      <button 
-                        className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 transition-colors" 
-                        onClick={() => setDeleteConfirmId(q.id)} 
+                      <button
+                        className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 transition-colors"
+                        onClick={() => setDeleteConfirmId(q.id)}
                       >
                         <Trash2 size={18} />
-                        <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-slate-800 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Delete</span>
+                        <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-rose-600 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Delete</span>
                       </button>
                     </div>
                   </TableCell>
@@ -182,14 +183,14 @@ const QuotationList = ({ onSelect }) => {
             )}
           </TableBody>
         </Table>
+        <DataTablePagination 
+          currentPage={currentPage}
+          totalItems={filteredQuotations.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+        />
       </div>
-
-      <DataTablePagination 
-        currentPage={currentPage}
-        totalItems={filteredQuotations.length}
-        itemsPerPage={itemsPerPage}
-        onPageChange={setCurrentPage}
-      />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (

@@ -9,15 +9,34 @@ const generateId = () => Math.random().toString(36).substr(2, 9).toUpperCase();
 
 export const AppProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('fc_auth') === 'true');
-  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('fc_user')) || null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fc_user');
+      return (saved && saved !== 'undefined') ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [role, setRole] = useState(() => user?.role || 'Admin');
+
+  // One-time Purge for Clean Slate (v4 Cleanup)
+  useEffect(() => {
+    if (localStorage.getItem('fc_v4_purge') !== 'true') {
+      localStorage.removeItem('fc_enquiries');
+      localStorage.removeItem('fc_quotations');
+      localStorage.removeItem('fc_work_orders');
+      localStorage.removeItem('fc_purchase_orders');
+      localStorage.removeItem('fc_invoices');
+      localStorage.removeItem('fc_inventory');
+      localStorage.setItem('fc_v4_purge', 'true');
+      window.location.reload(); // Refresh to apply empty state
+    }
+  }, []);
   
   // Load data from localStorage
   const [enquiries, setEnquiries] = useState(() => {
     const saved = localStorage.getItem('fc_enquiries');
-    return saved ? JSON.parse(saved) : [
-      { id: 'ENQ-MOCK1', customerName: 'John Doe', company: 'TechCorp', email: 'john@techcorp.com', phone: '1234567890', description: 'Need 4 custom gears', partsCount: 4, status: 'New', date: new Date().toISOString() }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [quotations, setQuotations] = useState(() => {
@@ -32,17 +51,62 @@ export const AppProvider = ({ children }) => {
       status: q.status || 'Draft'
     }));
   });
-  const [workOrders, setWorkOrders] = useState(() => JSON.parse(localStorage.getItem('fc_work_orders')) || []);
-  const [purchaseOrders, setPurchaseOrders] = useState(() => JSON.parse(localStorage.getItem('fc_purchase_orders')) || []);
-  const [invoices, setInvoices] = useState(() => JSON.parse(localStorage.getItem('fc_invoices')) || []);
+  const [workOrders, setWorkOrders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fc_work_orders');
+      const parsed = saved ? JSON.parse(saved) : [];
+      if (!Array.isArray(parsed)) return [];
+      // Sanitization: Ensure all WOs have the new financial fields for consistent display
+      return parsed.filter(Boolean).map(wo => {
+        const total = wo.totalAmount || wo.amount || 50000;
+        const sub   = wo.partSubtotal || Math.round(total / 1.18);
+        const gst   = wo.partGST      || Math.round((total / 1.18) * 0.18);
+        return {
+          ...wo,
+          totalAmount: total,
+          partSubtotal: sub,
+          partGST: gst,
+          // Ensure other basic fields exist
+          status: wo.status || 'Pending',
+          customer: wo.customer || '—',
+          partQuantity: wo.partQty || wo.partQuantity || 1
+        };
+      });
+    } catch (e) {
+      console.error("Error parsing work orders:", e);
+      return [];
+    }
+  });
+
+  const [purchaseOrders, setPurchaseOrders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fc_purchase_orders');
+      return (saved && saved !== 'undefined') ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [invoices, setInvoices] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fc_invoices');
+      const parsed = saved ? JSON.parse(saved) : [];
+      if (!Array.isArray(parsed)) return [];
+      // Sanitization: Ensure all invoices have totalAmount and other basic fields
+      return parsed.filter(Boolean).map(inv => ({
+        ...inv,
+        totalAmount: inv.totalAmount || inv.amount || 100000,
+        status: inv.status || 'Pending',
+        date: inv.date || new Date().toISOString()
+      }));
+    } catch (e) {
+      console.error("Error parsing invoices:", e);
+      return [];
+    }
+  });
   const [inventory, setInventory] = useState(() => {
     const saved = localStorage.getItem('fc_inventory');
-    return saved ? JSON.parse(saved) : [
-      { id: 'INV-001', name: 'Raw Material: AL6082', qty: 450, unit: 'Kg', value: 125000, status: 'In Stock' },
-      { id: 'INV-002', name: 'Raw Material: SS304', qty: 210, unit: 'Kg', value: 88000, status: 'In Stock' },
-      { id: 'INV-003', name: 'Finished Part: Gear A', qty: 15, unit: 'Nos', value: 45000, status: 'In Stock' },
-      { id: 'INV-004', name: 'Finished Part: Shaft B', qty: 8, unit: 'Nos', value: 32000, status: 'In Stock' },
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
   const [notifications, setNotifications] = useState([]);
   const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('fc_settings')) || {
@@ -98,16 +162,7 @@ export const AppProvider = ({ children }) => {
     const enquiry = enquiries.find(e => e.id === enquiryId);
     if (!enquiry) return null;
 
-    const parts = customParts || [
-      { 
-        name: 'Mechanical Part A', 
-        description: enquiry.description, 
-        material: 'AL6082', // Default material
-        unit: 'Nos', // Default unit as per image
-        qty: Number(enquiry.partsCount) || 1, 
-        price: 0 
-      }
-    ];
+    const parts = customParts || [];
 
     const subtotal = parts.reduce((sum, p) => sum + (Number(p.qty) || 0) * (Number(p.price) || 0), 0);
     const gst = subtotal * 0.18;
@@ -138,6 +193,14 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateEnquiryStatus = (id, status) => {
+    const enquiry = enquiries.find(e => e.id === id);
+    
+    // Automation: If status is manually moved to 'Quoted' and no quote exists, convert it.
+    if (status === 'Quoted' && enquiry && !enquiry.quoteId) {
+      convertToQuotation(id);
+      return; // convertToQuotation handles the state update and notification
+    }
+
     setEnquiries(prev => prev.map(e => e.id === id ? { ...e, status } : e));
     addNotification(`Enquiry ${id} status updated to ${status}`, 'Info');
   };
@@ -241,7 +304,7 @@ export const AppProvider = ({ children }) => {
     return newPO;
   };
 
-  const [productionUsers] = useState(['Rohan Shinde', 'Admin', 'Sara Khan', 'Mechanic A', 'Quality Inspector']);
+  const [productionUsers] = useState(['Rohan S.', 'Vikram M.', 'Anita K.', 'Sameer D.', 'Priya R.']);
 
   const addWorkOrder = (woData) => {
     const newWO = {
@@ -269,30 +332,41 @@ export const AppProvider = ({ children }) => {
     const quote = quotations.find(q => q.id === quoteId);
     if (!quote) return;
 
-    const newWOs = (quote.parts || []).map((part, index) => ({
-      id: `WO-${quoteId.replace('QTN-','')}-${index + 1}`,
-      quoteId: quote.id,
-      poId: poId || 'PENDING',
-      partName: part.name,
-      description: part.description,
-      status: 'Pending',
-      totalAmount: (Number(part.qty) || 1) * (Number(part.price) || 0) * 1.18, // with GST
-      amountReceived: 0,
-      payments: [],
-      assignedTo: 'Unassigned',
-      dept: 'Manufacturing',
-      startDate: null,
-      completionDate: null,
-      customer: quote.customerName,
-      remarks: '',
-      process: [
-        { label: 'Inward', status: 'Pending', time: null },
-        { label: 'Production', status: 'Pending', time: null },
-        { label: 'QC', status: 'Pending', time: null },
-        { label: 'Dispatch', status: 'Pending', time: null }
-      ],
-      traceability: { enqId: quote.enqId || 'N/A', quoteId: quote.id, poId: poId || 'N/A' }
-    }));
+    const newWOs = (quote.parts || []).map((part, index) => {
+      const qty     = Number(part.qty)   || 1;
+      const price   = Number(part.price) || 0;
+      const subtotal = qty * price;
+      const gst     = subtotal * 0.18;
+      return {
+        id: `WO-${quoteId.replace('QTN-','')}-${index + 1}`,
+        quoteId: quote.id,
+        poId: poId || 'PENDING',
+        partName: part.name,
+        description: part.description,
+        status: 'Pending',
+        // ── Quotation-derived pricing (always stored for display in all modules) ──
+        partQty: qty,
+        partPrice: price,
+        partSubtotal: subtotal,
+        partGST: gst,
+        totalAmount: subtotal + gst,   // subtotal + 18% GST
+        amountReceived: 0,
+        payments: [],
+        assignedTo: 'Unassigned',
+        dept: 'Manufacturing',
+        startDate: null,
+        completionDate: null,
+        customer: quote.customerName,
+        remarks: '',
+        process: [
+          { label: 'Inward',      status: 'Pending', time: null },
+          { label: 'Production',  status: 'Pending', time: null },
+          { label: 'QC',          status: 'Pending', time: null },
+          { label: 'Dispatch',    status: 'Pending', time: null }
+        ],
+        traceability: { enqId: quote.enqId || 'N/A', quoteId: quote.id, poId: poId || 'N/A' }
+      };
+    });
 
     setWorkOrders(prev => [...newWOs, ...prev]);
     setQuotations(prev => prev.map(q => q.id === quoteId ? { ...q, status: 'Work Order Created' } : q));
@@ -394,6 +468,11 @@ export const AppProvider = ({ children }) => {
     if (!pi) return;
 
     if (pi.type === 'Proforma') {
+      if (pi.balanceAmount > 0) {
+        addNotification(`Conversion Blocked: Proforma ${piId} has a balance of ₹${pi.balanceAmount}. Full settlement required.`, 'Warning');
+        return;
+      }
+      
       // Update PI status
       setInvoices(prev => prev.map(inv => inv.id === pi.id ? { ...inv, status: 'Converted to Tax Invoice' } : inv));
       
@@ -404,19 +483,42 @@ export const AppProvider = ({ children }) => {
         linkedWO: pi.linkedWO,
         linkedPI: pi.id,
         totalAmount: pi.totalAmount,
-        amountReceived: pi.totalAmount - pi.balanceAmount, // assuming advance was received
-        pendingAmount: pi.balanceAmount,
+        amountReceived: pi.totalAmount, // confirmed by balance check
+        pendingAmount: 0,
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
       });
     }
   };
 
   const updateInvoiceGRN = (invoiceId, grnNumber) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === invoiceId ? { ...inv, grnNumber, grnStatus: 'Received' } : inv
-    ));
+    setInvoices(prev => prev.map(inv => {
+      if (inv.id === invoiceId) {
+        const updatedInv = { ...inv, grnNumber, grnStatus: 'Received' };
+        // If already fully paid, move to Completed & Closed
+        if (updatedInv.pendingAmount <= 0) {
+          updatedInv.status = 'Completed & Closed';
+          
+          // CRITICAL: Update linked Work Order Status
+          if (updatedInv.linkedWO) {
+             setWorkOrders(prevWO => prevWO.map(wo => 
+               wo.id === updatedInv.linkedWO ? { ...wo, status: 'Completed' } : wo
+             ));
+             addNotification(`Process Closed: ${updatedInv.id} & WO ${updatedInv.linkedWO} finalized`, 'Success');
+          }
+        }
+        return updatedInv;
+      }
+      return inv;
+    }));
     addNotification(`GRN confirmed for Invoice ${invoiceId}`, 'Success');
   };
+
+  const sendInvoice = (id) => {
+    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status: 'Sent', lastSent: new Date().toISOString() } : inv));
+    addNotification(`Invoice ${id} shared with client`, 'Success');
+  };
+
+  const sendPI = (id) => sendInvoice(id);
 
   const deleteInvoice = (id) => {
     setInvoices(prev => prev.filter(inv => inv.id !== id));
@@ -428,11 +530,24 @@ export const AppProvider = ({ children }) => {
       if (inv.id === invoiceId) {
         const newPayments = [...(inv.payments || []), { ...paymentData, id: Date.now(), date: paymentData.date || new Date().toISOString() }];
         const totalPaid = newPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const pending = inv.totalAmount - totalPaid;
         
-        // Only set status to Paid if GRN isn't a blocker, or if total is met
-        let status = totalPaid >= inv.totalAmount ? 'Paid' : 'Partial';
-        if (inv.type === 'Tax' && inv.grnStatus !== 'Received' && status === 'Paid') {
-          status = 'GRN Pending';
+        let status = pending <= 0 ? 'Paid' : 'Partial';
+        
+        // Advanced logic: If Paid but missing GRN (for Tax invoices), set to 'GRN Pending'
+        if (inv.type === 'Tax' && pending <= 0) {
+          if (inv.grnStatus !== 'Received') {
+            status = 'GRN Pending';
+          } else {
+            status = 'Completed & Closed';
+            // CRITICAL: Update linked Work Order Status
+            if (inv.linkedWO) {
+               setWorkOrders(prevWO => prevWO.map(wo => 
+                 wo.id === inv.linkedWO ? { ...wo, status: 'Completed' } : wo
+               ));
+               addNotification(`Order Finalized: Invoice ${invoiceId} & WO ${inv.linkedWO} closed`, 'Success');
+            }
+          }
         }
         
         return { 
@@ -440,7 +555,7 @@ export const AppProvider = ({ children }) => {
           payments: newPayments, 
           status,
           amountReceived: totalPaid,
-          pendingAmount: inv.totalAmount - totalPaid
+          pendingAmount: pending
         };
       }
       return inv;
@@ -498,7 +613,7 @@ export const AppProvider = ({ children }) => {
     quotations, addQuotation, convertToQuotation, reviseQuotation,
     purchaseOrders, addPurchaseOrder, updatePurchaseOrderStatus,
     workOrders, convertToWorkOrders, updateWorkOrderStatus, updateWorkOrder, addManualWorkOrder, addWorkOrder, addWorkOrderPayment,
-    invoices, addInvoice, updateInvoiceGRN, addPaymentEntry, convertToTaxInvoice,
+    invoices, addInvoice, updateInvoiceGRN, addPaymentEntry, convertToTaxInvoice, sendPI, sendInvoice,
     inventory, setInventory,
     notifications, addNotification,
     settings, setSettings,

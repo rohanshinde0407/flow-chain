@@ -22,18 +22,42 @@ const AppShell = ({ children, activePage, onNavigate }) => {
   const { role, user, logout } = useApp();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', roles: ['Admin', 'Manager', 'Sales'] },
-    { icon: MessageSquarePlus, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales'] },
-    { icon: FileText, label: 'Quotations', roles: ['Admin', 'Manager', 'Sales'] },
-    { icon: FilePlus, label: 'Purchase Orders', roles: ['Admin', 'Manager', 'Sales'] },
-    { icon: ClipboardCheck, label: 'Work Orders', roles: ['Admin', 'Manager'] },
-    { icon: Wallet, label: 'Payment Accounts', roles: ['Admin', 'Manager', 'Sales'] },
-    { icon: Receipt, label: 'Invoicing', roles: ['Admin', 'Manager'] },
-    { icon: Settings, label: 'Settings', roles: ['Admin'] },
+  const menuSections = [
+    {
+      title: 'Core Dashboard',
+      items: [
+        { icon: LayoutDashboard, label: 'Dashboard', roles: ['Admin', 'Manager', 'Sales'] }
+      ]
+    },
+    {
+      title: 'Commercial Hub',
+      items: [
+        { icon: MessageSquarePlus, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales'] },
+        { icon: FileText, label: 'Quotations', roles: ['Admin', 'Manager', 'Sales'] },
+        { icon: FilePlus, label: 'Purchase Orders', roles: ['Admin', 'Manager', 'Sales'] }
+      ]
+    },
+    {
+      title: 'Operations',
+      items: [
+        { icon: ClipboardCheck, label: 'Work Orders', roles: ['Admin', 'Manager'] }
+      ]
+    },
+    {
+      title: 'Finance & Invoicing',
+      items: [
+        { icon: Wallet, label: 'Payment Accounts', roles: ['Admin', 'Manager', 'Sales'] },
+        { icon: Receipt, label: 'Invoicing', roles: ['Admin', 'Manager'] }
+      ]
+    },
+    {
+      title: 'System',
+      items: [
+        { icon: Settings, label: 'Settings', roles: ['Admin'] }
+      ]
+    }
   ];
 
-  const filteredMenu = menuItems.filter(item => item.roles.includes(role));
   const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
   return (
@@ -51,20 +75,30 @@ const AppShell = ({ children, activePage, onNavigate }) => {
         </div>
 
         <nav className="sidebar-nav">
-          {filteredMenu.map((item) => (
-            <button 
-              key={item.label} 
-              className={`nav-item ${activePage === item.label ? 'active' : ''}`}
-              onClick={() => onNavigate(item.label)}
-            >
-              <div className="nav-icon-wrapper">
-                <item.icon size={20} className="stroke-[2.5px] opacity-80 transition-opacity flex-shrink-0" />
-              </div>
-              <span className="nav-label">{item.label}</span>
-              <span className="nav-tooltip">{item.label}</span>
-              {activePage === item.label && <div className="active-pill"></div>}
-            </button>
-          ))}
+          {menuSections.map((section) => {
+            const visibleItems = section.items.filter(item => item.roles.includes(role));
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <React.Fragment key={section.title}>
+                <div className="nav-category">{section.title}</div>
+                {visibleItems.map((item) => (
+                  <button 
+                    key={item.label} 
+                    className={`nav-item ${activePage === item.label ? 'active' : ''}`}
+                    onClick={() => onNavigate(item.label)}
+                  >
+                    <div className="nav-icon-wrapper">
+                      <item.icon size={20} className="stroke-[2.5px] opacity-80 transition-opacity flex-shrink-0" />
+                    </div>
+                    <span className="nav-label">{item.label}</span>
+                    <span className="nav-tooltip">{item.label}</span>
+                    {activePage === item.label && <div className="active-pill"></div>}
+                  </button>
+                ))}
+              </React.Fragment>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">

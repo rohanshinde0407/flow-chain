@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { 
+  Plus,
   FilePlus, 
   Search, 
   Filter, 
@@ -12,7 +13,10 @@ import {
   Trash2,
   AlertTriangle,
   User,
-  Calendar
+  Calendar,
+  DollarSign,
+  Link,
+  Hash
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import DataTablePagination from '../../components/common/DataTablePagination';
@@ -27,11 +31,11 @@ import {
 } from '../../components/ui/table';
 
 const PurchaseOrderList = () => {
-  const { purchaseOrders, quotations, workOrders, updatePurchaseOrderStatus, productionUsers, addWorkOrder, onNavigate, setSelectedWorkOrderId, deletePurchaseOrder } = useApp();
+  const { purchaseOrders, quotations, workOrders, updatePurchaseOrderStatus, productionUsers, addWorkOrder, onNavigate, setSelectedWorkOrderId, deletePurchaseOrder, addPurchaseOrder } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(8);
   const [selectedPO, setSelectedPO] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [woCreationPO, setWoCreationPO] = useState(null);
@@ -41,6 +45,14 @@ const PurchaseOrderList = () => {
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
     deliveryDate: ''
+  });
+  const [showPOForm, setShowPOForm] = useState(false);
+  const [poFormData, setPoFormData] = useState({
+    customerName: '',
+    quoteId: '',
+    amount: '',
+    poNumber: '',
+    date: new Date().toISOString().split('T')[0]
   });
 
   const statusOptions = ['All', 'Received', 'Work Order Created', 'Completed'];
@@ -96,6 +108,10 @@ const PurchaseOrderList = () => {
             <h1>Purchase Orders</h1>
             <p>Track incoming POs and convert them to execution work orders.</p>
           </div>
+          <button className="btn btn-primary" onClick={() => setShowPOForm(true)}>
+            <Plus size={18} />
+            New Purchase Order
+          </button>
         </div>
 
         <div className="module-actions glass">
@@ -126,7 +142,7 @@ const PurchaseOrderList = () => {
           </div>
         </div>
 
-        <div className="flex-1 w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-in">
+        <div className="fc-table-container">
           <Table className="min-w-[1000px]">
             <TableHeader>
               <TableRow>
@@ -143,11 +159,11 @@ const PurchaseOrderList = () => {
             <TableBody>
               {paginatedPOs.length > 0 ? (
                 paginatedPOs.map((po, index) => (
-                  <TableRow 
-                    key={po.id} 
-                    className={`cursor-pointer transition-all ${
-                      selectedPO?.id === po.id ? 'bg-primary-light/40 border-l-4 border-l-primary' : 
-                      po.status === 'Completed' ? 'bg-green-50/30' : 
+                  <TableRow
+                    key={po.id}
+                    className={`cursor-pointer transition-all hover:bg-slate-50/80 ${
+                      selectedPO?.id === po.id ? 'bg-indigo-50/30' :
+                      po.status === 'Completed' ? 'bg-green-50/20' :
                       po.status === 'Work Order Created' ? 'bg-blue-50/20' : ''
                     }`}
                     onClick={() => setSelectedPO(po)}
@@ -156,46 +172,56 @@ const PurchaseOrderList = () => {
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </TableCell>
                     <TableCell>
-                      <div className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-slate-100/80 border border-slate-200 text-slate-700 font-mono text-xs font-bold shadow-sm">
-                        SN-PO-{po.id}
+                      <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-mono text-xs font-bold">
+                        {po.poNumber || `PO-${po.id}`}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col items-center justify-center gap-0.5">
+                        <span className="font-bold text-slate-900 text-center">{po.customerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span className="font-semibold text-slate-900 inline-block text-center">{po.customerName}</span>
+                    <TableCell className="whitespace-nowrap text-xs font-medium text-muted-foreground text-center">
+                      {formatDate(po.date)}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(po.date)}</TableCell>
-                    <TableCell className="font-bold amount-inr pr-4">{po.amount}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-1.5 text-primary-hover font-medium whitespace-nowrap">
-                        <span className="font-bold opacity-60">#</span>
-                        {po.quoteId}
+                    <TableCell className="font-bold text-right pr-4">
+                      ₹{Number(po.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                        <span className="font-bold opacity-50">#</span>
+                        {po.quoteId || '—'}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span className={`badge whitespace-nowrap ${getStatusBadge(po.status)}`}>
-                        {po.status.toUpperCase()}
+                    <TableCell className="text-center">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border whitespace-nowrap ${
+                        po.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        po.status === 'Work Order Created' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {po.status}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button 
-                          className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-slate-700 transition-colors" 
-                          onClick={() => setSelectedPO(po)} 
+                        <button
+                          className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                          onClick={() => setSelectedPO(po)}
                         >
                           <Eye size={18} />
                           <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-slate-800 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">View Details</span>
                         </button>
-                        <button 
-                          className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 transition-colors" 
-                          onClick={() => setDeleteConfirmId(po.id)} 
+                        <button
+                          className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-rose-600 transition-colors"
+                          onClick={() => setDeleteConfirmId(po.id)}
                         >
                           <Trash2 size={18} />
-                          <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-slate-800 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Delete PO</span>
+                          <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-rose-600 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Delete PO</span>
                         </button>
                         {po.status !== 'Completed' && (
-                          <button 
+                          <button
                             className="relative group inline-flex h-8 w-8 items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors"
-                            onClick={() => setWoCreationPO(po)}
+                            onClick={() => { setSelectedPO(null); setWoCreationPO({ ...po }); }}
                           >
                             <ClipboardCheck size={18} />
                             <span className="absolute right-full top-1/2 -translate-y-1/2 mr-2 hidden group-hover:block px-2 py-1 bg-indigo-600 text-white text-[10px] font-medium whitespace-nowrap rounded shadow-sm z-50 pointer-events-none">Create Work Order</span>
@@ -214,123 +240,16 @@ const PurchaseOrderList = () => {
               )}
             </TableBody>
           </Table>
+          <DataTablePagination 
+            currentPage={currentPage}
+            totalItems={filteredPOs.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </div>
-
-        <DataTablePagination 
-          currentPage={currentPage}
-          totalItems={filteredPOs.length}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-        />
       </div>
 
-      {/* Work Order Creation Modal */}
-      {woCreationPO && (
-        <div className="modal-overlay">
-          <div className="modal-content glass" style={{ maxWidth: '600px' }}>
-            <div className="flex justify-between items-center mb-4">
-              <h2>Create Work Order for {woCreationPO.poNumber}</h2>
-              <button className="icon-btn" onClick={() => setWoCreationPO(null)}><X size={20} /></button>
-            </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              addWorkOrder({
-                ...workOrderData,
-                poNumber: woCreationPO.poNumber,
-                poInternalId: woCreationPO.id,
-                quoteId: woCreationPO.quoteId,
-                customer: woCreationPO.customerName,
-                status: 'Pending'
-              });
-              setWoCreationPO(null);
-              // Reset form
-              setWorkOrderData({
-                partName: '',
-                assignedUser: '',
-                startDate: new Date().toISOString().split('T')[0],
-                endDate: '',
-                deliveryDate: ''
-              });
-            }} className="enquiry-form">
-              
-              <div className="form-group">
-                <label>Select Part / Item from PO</label>
-                <select 
-                  required
-                  className="form-input"
-                  value={workOrderData.partName}
-                  onChange={(e) => setWorkOrderData({...workOrderData, partName: e.target.value})}
-                >
-                  <option value="">-- Select a Part --</option>
-                  {(quotations.find(q => q.id === woCreationPO.quoteId)?.parts || []).map((part, idx) => (
-                    <option key={idx} value={part.name}>{part.name} ({part.qty} {part.unit})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Assign Technician / User</label>
-                  <select 
-                    required
-                    className="form-input"
-                    value={workOrderData.assignedUser}
-                    onChange={(e) => setWorkOrderData({...workOrderData, assignedUser: e.target.value})}
-                  >
-                    <option value="">-- Assign To --</option>
-                    {productionUsers.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Start Date</label>
-                  <input 
-                    type="date" 
-                    required
-                    className="form-input"
-                    value={workOrderData.startDate}
-                    onChange={(e) => setWorkOrderData({...workOrderData, startDate: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="form-grid-2 mt-3">
-                <div className="form-group">
-                  <label>Expected End Date</label>
-                  <input 
-                    type="date" 
-                    required
-                    className="form-input"
-                    value={workOrderData.endDate}
-                    onChange={(e) => setWorkOrderData({...workOrderData, endDate: e.target.value})}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Committed Delivery Date</label>
-                  <input 
-                    type="date" 
-                    required
-                    className="form-input"
-                    value={workOrderData.deliveryDate}
-                    onChange={(e) => setWorkOrderData({...workOrderData, deliveryDate: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="card info-card-small mt-4">
-                <p className="text-xs text-muted">Traceability: Linked to Quote <strong>{woCreationPO.quoteId}</strong> and Customer <strong>{woCreationPO.customerName}</strong></p>
-              </div>
-
-              <div className="form-actions mt-6">
-                <button type="button" className="btn-outline" onClick={() => setWoCreationPO(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">
-                  <ClipboardCheck size={18} /> Initiate Work Order
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
@@ -350,147 +269,556 @@ const PurchaseOrderList = () => {
         </div>
       )}
 
-      {/* PO Detail Selection Sidebar - MOVED OUTSIDE ANIMATED CONTAINER FOR FULL-HEIGHT DOCKING */}
-      {/* PO Detail Selection Sidebar - Defensive Rendering Check */}
+      {/* PO Detail Side Drawer */}
       {selectedPO && (
-        <div className="side-panel show glass" style={{ zIndex: 9999 }}>
-          <div className="panel-header">
-            <div className="panel-title-group">
-              <label>Purchase Order Details</label>
-              <div className="title-badge-row">
-                <h3>{selectedPO.id || 'PO-NEW'}</h3>
-                <span className={`badge-pill ${(getStatusBadge(selectedPO.status || '') || 'badge-warning').replace('badge-', '')}`}>
-                  <span className="status-indicator"></span>
+        <div style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0,
+          width: '420px', zIndex: 9999,
+          background: '#fff',
+          boxShadow: '-8px 0 40px rgba(0,0,0,0.12)',
+          display: 'flex', flexDirection: 'column'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+            padding: '1.5rem', flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>
+                  Purchase Order
+                </p>
+                <h2 style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 900, margin: '0.3rem 0 0.2rem', letterSpacing: '-0.01em' }}>
+                  {selectedPO.customerName || 'Unknown Customer'}
+                </h2>
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.75rem', margin: 0 }}>
+                  {selectedPO.id} &nbsp;&#183;&nbsp; {formatDate(selectedPO.date)}
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{
+                  padding: '0.2rem 0.625rem', borderRadius: '9999px', fontSize: '0.6rem',
+                  fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
+                  background: selectedPO.status === 'Completed' ? '#dcfce7' : selectedPO.status === 'Work Order Created' ? '#dbeafe' : '#fef3c7',
+                  color: selectedPO.status === 'Completed' ? '#166534' : selectedPO.status === 'Work Order Created' ? '#1d4ed8' : '#92400e'
+                }}>
                   {selectedPO.status || 'Received'}
                 </span>
+                <button onClick={() => setSelectedPO(null)} style={{
+                  background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                  width: '2rem', height: '2rem', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', flexShrink: 0
+                }}>
+                  <X size={16} />
+                </button>
               </div>
             </div>
-            <div className="panel-header-actions">
-              <button className="close-panel-btn" onClick={() => setSelectedPO(null)}><X size={20} /></button>
-            </div>
           </div>
-          
-          <div className="panel-content custom-scrollbar">
-            <div className="panel-section no-border pt-0">
-              <div className="panel-summary-grid-v2">
-                <div className="summary-card">
-                  <div className="flex items-center gap-2 mb-1">
-                    <User size={14} className="text-muted" />
-                    <label>Customer Name</label>
-                  </div>
-                  <span>{selectedPO.customerName || 'N/A'}</span>
+
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ background: '#f8fafc', borderRadius: '0.75rem', padding: '0.875rem', border: '1px solid #e2e8f0' }}>
+                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.4rem' }}>Customer</p>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{selectedPO.customerName || 'N/A'}</p>
                 </div>
-                <div className="summary-card">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Calendar size={14} className="text-muted" />
-                    <label>Date Received</label>
-                  </div>
-                  <span>{formatDate(selectedPO.date)}</span>
+                <div style={{ background: '#f8fafc', borderRadius: '0.75rem', padding: '0.875rem', border: '1px solid #e2e8f0' }}>
+                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.4rem' }}>Date Received</p>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{formatDate(selectedPO.date)}</p>
                 </div>
-                <div className="summary-card">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-muted opacity-80">₹</span>
-                    <label>Price Agreement</label>
-                  </div>
-                  <span className="amount-inr">{selectedPO.amount || '0'}</span>
+                <div style={{ background: '#0f172a', borderRadius: '0.75rem', padding: '0.875rem' }}>
+                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.4rem' }}>Agreement Value</p>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 900, color: '#fff', margin: 0 }}>{selectedPO.amount || '0'}</p>
                 </div>
-                <div className="summary-card">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-muted opacity-80">#</span>
-                    <label>Quote Reference</label>
-                  </div>
-                  <span className="text-primary font-bold">{selectedPO.quoteId || 'N/A'}</span>
+                <div style={{ background: '#f8fafc', borderRadius: '0.75rem', padding: '0.875rem', border: '1px solid #e2e8f0' }}>
+                  <p style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 0.4rem' }}>Quote Reference</p>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1', margin: 0 }}>{selectedPO.quoteId || 'Not Linked'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="panel-section">
-              <div className="section-header">
-                <label>Verified Line Items</label>
-                <span className="count-pill">
-                  {((quotations || []).find(q => q.id === selectedPO.quoteId)?.parts || []).length}
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
+                <p style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Line Items</p>
+                <span style={{ background: '#eef2ff', color: '#6366f1', border: '1px solid #e0e7ff', borderRadius: '9999px', fontSize: '0.6rem', fontWeight: 800, padding: '0.15rem 0.5rem' }}>
+                  {((quotations || []).find(q => q.id === selectedPO.quoteId)?.parts || []).length} items
                 </span>
               </div>
-              <div className="panel-table-wrapper-v2 glass">
-                <table className="panel-table-v2">
-                  <thead>
-                    <tr>
-                      <th>Part Description</th>
-                      <th>Qty</th>
-                      <th className="text-right">Unit Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {((quotations || []).find(q => q.id === selectedPO.quoteId)?.parts || []).map((part, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          <div className="part-info">
-                            <span className="part-name-text">{part?.name || 'Unknown Part'}</span>
-                          </div>
-                        </td>
-                        <td><span className="qty-tag">{part?.qty || 0}</span></td>
-                        <td className="amount text-right">₹{Number(part?.price || 0).toLocaleString('en-IN')}</td>
+              {((quotations || []).find(q => q.id === selectedPO.quoteId)?.parts || []).length > 0 ? (
+                <div style={{ borderRadius: '0.75rem', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <th style={{ padding: '0.6rem 0.875rem', fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Part</th>
+                        <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>Qty</th>
+                        <th style={{ padding: '0.6rem 0.875rem', fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Price</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {((quotations || []).find(q => q.id === selectedPO.quoteId)?.parts || []).map((part, idx, arr) => (
+                        <tr key={idx} style={{ borderBottom: idx < arr.length - 1 ? '1px solid #f1f5f9' : 'none', background: '#fff' }}>
+                          <td style={{ padding: '0.75rem 0.875rem', fontSize: '0.8rem', fontWeight: 600, color: '#1e293b' }}>{part?.name || 'Unknown'}</td>
+                          <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                            <span style={{ background: '#f1f5f9', color: '#475569', borderRadius: '0.375rem', padding: '0.2rem 0.5rem', fontSize: '0.7rem', fontWeight: 700 }}>
+                              {part?.qty || 0} {part?.unit || 'pcs'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.875rem', fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', textAlign: 'right' }}>
+                            &#8377;{Number(part?.price || 0).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: '1.25rem', background: '#f8fafc', borderRadius: '0.75rem', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>No linked quote items</p>
+                </div>
+              )}
             </div>
-            
-            <div className="panel-section">
-              <div className="section-header">
-                <label>Linked Work Orders</label>
-                <div className="pulse-indicator"></div>
+
+            <div style={{ padding: '1.25rem 1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
+                <p style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Linked Work Orders</p>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 0 3px rgba(16,185,129,0.15)' }} />
               </div>
-              <div className="panel-wo-scroll-container">
-                <div className="panel-wo-grid">
-                  {(workOrders || []).filter(wo => wo && (wo.poInternalId === selectedPO.id || wo.poId === selectedPO.id || wo.poNumber === selectedPO.poNumber)).length > 0 ? (
-                    (workOrders || []).filter(wo => wo && (wo.poInternalId === selectedPO.id || wo.poId === selectedPO.id || wo.poNumber === selectedPO.poNumber)).map(wo => (
-                      <div 
-                        key={wo.id} 
-                        className="premium-wo-card" 
-                        onClick={() => {
-                          if (setSelectedWorkOrderId && onNavigate) {
-                            setSelectedWorkOrderId(wo.id);
-                            onNavigate('Work Orders');
-                          }
-                        }}
-                      >
-                        <div className="wo-card-header">
-                          <div className="wo-badge">
-                            <ClipboardCheck size={12} />
-                            <span>{wo.id}</span>
-                          </div>
-                          <span className={`status-dot ${wo.status === 'Completed' ? 'success' : 'pending'}`}></span>
+
+              {(workOrders || []).filter(wo => wo && (wo.poInternalId === selectedPO.id || wo.poId === selectedPO.id || wo.poNumber === selectedPO.poNumber)).length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                  {(workOrders || []).filter(wo => wo && (wo.poInternalId === selectedPO.id || wo.poId === selectedPO.id || wo.poNumber === selectedPO.poNumber)).map(wo => (
+                    <div key={wo.id}
+                      onClick={() => { if (setSelectedWorkOrderId && onNavigate) { setSelectedWorkOrderId(wo.id); onNavigate('Work Orders'); } }}
+                      style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.875rem', padding: '0.875rem 1rem', cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ClipboardCheck size={13} color="#6366f1" />
+                          <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#6366f1', textTransform: 'uppercase' }}>{wo.id}</span>
                         </div>
-                        <h4 className="wo-card-title">{wo.partName || 'Production Order'}</h4>
-                        <div className="wo-card-footer">
-                          <span className={`status-text ${(wo.status || 'Pending').toLowerCase().replace('', '-')}`}>{wo.status || 'Pending'}</span>
-                          <div className="go-btn">
-                            View Order <ArrowRight size={14} />
-                          </div>
-                        </div>
+                        <span style={{
+                          padding: '0.15rem 0.5rem', borderRadius: '9999px', fontSize: '0.6rem', fontWeight: 800,
+                          background: wo.status === 'Completed' ? '#dcfce7' : wo.status === 'In Progress' ? '#dbeafe' : '#fef3c7',
+                          color: wo.status === 'Completed' ? '#166534' : wo.status === 'In Progress' ? '#1d4ed8' : '#92400e'
+                        }}>{wo.status || 'Pending'}</span>
                       </div>
-                    ))
-                  ) : (
-                    <div className="empty-panel-msg-v2 glass">
-                      <p>No production orders have been initiated for this PO yet.</p>
-                      {selectedPO.status !== 'Completed' && (
-                        <button 
-                          className="btn btn-primary btn-sm mt-4 w-full"
-                          onClick={() => setWoCreationPO(selectedPO)}
-                        >
-                          <FilePlus size={18} /> Initiate New Work Order
-                        </button>
-                      )}
+                      <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>{wo.partName || 'Production Order'}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: '0.5rem', gap: '0.25rem' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#6366f1', fontWeight: 700 }}>View Order</span>
+                        <ArrowRight size={11} color="#6366f1" />
+                      </div>
                     </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.875rem', padding: '1.25rem', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 1rem' }}>No work orders initiated yet.</p>
+                  {selectedPO.status !== 'Completed' && (
+                    <button
+                      onClick={() => { setWoCreationPO({ ...selectedPO }); setTimeout(() => setSelectedPO(null), 10); }}
+                      style={{
+                        width: '100%', height: '2.5rem', border: 'none', borderRadius: '0.625rem',
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+                        color: '#fff', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em',
+                        boxShadow: '0 4px 12px rgba(15,23,42,0.25)'
+                      }}
+                    >
+                      <FilePlus size={15} /> Initiate New Work Order
+                    </button>
                   )}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Manual PO Creation Form Modal */}
+      {showPOForm && (
+        <div className="modal-overlay" style={{ background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(10px)' }}>
+          <div className="modal-content bg-white shadow-2xl animate-in fade-in zoom-in duration-300" style={{ maxWidth: '640px', padding: '3rem', borderRadius: '2rem', overflow: 'hidden', border: '1px solid #e2e8f0', position: 'relative' }}>
+            
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900 leading-tight">Log Manual Purchase Order</h2>
+                <p className="text-sm text-slate-500 mt-1">Directly record an incoming project order for execution tracking.</p>
+              </div>
+              <button 
+                className="p-2 rounded-full hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-all" 
+                onClick={() => setShowPOForm(false)}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const poData = {
+                ...poFormData,
+                poNumber: poFormData.poNumber || `MPO-${Math.floor(Math.random() * 10000)}`,
+                amount: `₹${Number(poFormData.amount).toLocaleString('en-IN')}`,
+                status: 'Received'
+              };
+              
+              addPurchaseOrder(poData);
+              setShowPOForm(false);
+              setPoFormData({
+                customerName: '',
+                quoteId: '',
+                amount: '',
+                poNumber: '',
+                date: new Date().toISOString().split('T')[0]
+              });
+            }} className="space-y-8">
+              
+              <div className="grid grid-cols-2 gap-8">
+                <div className="form-group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2.5">
+                    <User size={14} className="text-indigo-400" /> Customer Identity
+                  </label>
+                  <input 
+                    required 
+                    type="text" 
+                    placeholder="e.g. Reliance Industrial"
+                    className="form-input h-12"
+                    value={poFormData.customerName}
+                    onChange={(e) => setPoFormData({...poFormData, customerName: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2.5">
+                    <Hash size={14} className="text-indigo-400" /> PO Number (Optional)
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. PO-88772"
+                    className="form-input h-12"
+                    value={poFormData.poNumber}
+                    onChange={(e) => setPoFormData({...poFormData, poNumber: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8">
+                <div className="form-group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2.5">
+                    <Link size={14} className="text-indigo-400" /> Linked Quotation Ref
+                  </label>
+                  <select 
+                    className="form-input h-12"
+                    value={poFormData.quoteId}
+                    onChange={(e) => {
+                      const selectedQuote = quotations.find(q => q.id === e.target.value);
+                      setPoFormData({
+                        ...poFormData, 
+                        quoteId: e.target.value,
+                        customerName: selectedQuote ? selectedQuote.customerName : poFormData.customerName,
+                        amount: selectedQuote ? selectedQuote.totalAmount : poFormData.amount
+                      });
+                    }}
+                  >
+                    <option value="">-- No Link (Generic PO) --</option>
+                    {(quotations || []).map(q => (
+                      <option key={q.id} value={q.id}>{q.id} - {q.customerName} (₹{Number(q.totalAmount).toLocaleString('en-IN')})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2.5">
+                    <Calendar size={14} className="text-indigo-400" /> Agreement Date
+                  </label>
+                  <input 
+                    type="date" 
+                    required
+                    className="form-input h-12"
+                    value={poFormData.date}
+                    onChange={(e) => setPoFormData({...poFormData, date: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2.5">
+                  <DollarSign size={14} className="text-indigo-400" /> Total Contract Value (₹)
+                </label>
+                <div className="relative group">
+                   <div className="absolute left-0 top-0 h-full w-14 flex items-center justify-center bg-slate-50 border-r border-slate-200 rounded-l-lg transition-colors group-focus-within:bg-indigo-50 group-focus-within:border-indigo-200">
+                     <span className="text-lg font-black text-slate-900">₹</span>
+                   </div>
+                   <input 
+                    required 
+                    type="number" 
+                    placeholder="e.g. 125000"
+                    className="form-input pl-18 text-xl font-black tracking-tight h-16 shadow-inner"
+                    value={poFormData.amount}
+                    onChange={(e) => setPoFormData({...poFormData, amount: e.target.value})}
+                  />
+                </div>
+                <p className="text-[10px] font-bold text-slate-400 mt-3 uppercase tracking-widest px-1">Amount will be processed in Indian Rupees (INR)</p>
+              </div>
+
+              <div className="pt-8 flex gap-4">
+                <button type="button" className="btn-outline flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all" onClick={() => setShowPOForm(false)}>Discard Draft</button>
+                <button type="submit" className="btn btn-primary flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all shadow-2xl shadow-slate-900/20">
+                  <FilePlus size={18} /> Log Purchase Order
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Work Order Creation Modal - ROOT LEVEL */}
+      {woCreationPO && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10001,
+          background: 'rgba(15, 23, 42, 0.55)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            width: '100%', maxWidth: '560px',
+            background: '#fff',
+            borderRadius: '1.5rem',
+            boxShadow: '0 32px 64px -12px rgba(0,0,0,0.25)',
+            overflow: 'hidden',
+            animation: 'fadeIn 0.25s ease-out'
+          }}>
+            {/* Header Strip */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+              padding: '1.5rem 2rem',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <div>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '0.25rem' }}>
+                  Production Initiation
+                </p>
+                <h2 style={{ color: '#fff', fontSize: '1.25rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>
+                  Create Work Order
+                </h2>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', marginTop: '0.25rem', margin: 0 }}>
+                  Against PO: <span style={{ color: '#818cf8', fontWeight: 700 }}>{woCreationPO?.poNumber || '—'}</span>
+                  &nbsp;·&nbsp; {woCreationPO?.customerName || '—'}
+                </p>
+              </div>
+              <button
+                onClick={() => setWoCreationPO(null)}
+                style={{
+                  background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                  width: '2.25rem', height: '2.25rem', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', color: '#fff', flexShrink: 0
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                addWorkOrder({
+                  ...workOrderData,
+                  poNumber: woCreationPO?.poNumber,
+                  poInternalId: woCreationPO?.id,
+                  quoteId: woCreationPO?.quoteId,
+                  customer: woCreationPO?.customerName,
+                  status: 'Pending'
+                });
+                setWoCreationPO(null);
+                setWorkOrderData({
+                  partName: '',
+                  assignedUser: '',
+                  startDate: new Date().toISOString().split('T')[0],
+                  endDate: '',
+                  deliveryDate: ''
+                });
+              }}
+              style={{ padding: '1.75rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+            >
+
+              {/* Item Selection */}
+              <div>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase',
+                  letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.5rem'
+                }}>
+                  <Link size={12} color="#6366f1" /> Production Item
+                </label>
+                {woCreationPO?.quoteId ? (
+                  <select
+                    required
+                    value={workOrderData.partName}
+                    onChange={(e) => setWorkOrderData({ ...workOrderData, partName: e.target.value })}
+                    style={{
+                      width: '100%', height: '2.75rem', padding: '0 0.875rem',
+                      border: '1px solid #e2e8f0', borderRadius: '0.625rem',
+                      fontSize: '0.875rem', fontWeight: 600, color: '#0f172a',
+                      background: '#f8fafc', outline: 'none', cursor: 'pointer',
+                      appearance: 'auto'
+                    }}
+                  >
+                    <option value="">— Select item from Purchase Order —</option>
+                    {((quotations || []).find(q => q.id === woCreationPO.quoteId)?.parts || []).map((part, idx) => (
+                      <option key={idx} value={part?.name || ''}>
+                        {part?.qty || 0} {part?.unit || 'pcs'} — {part?.name || 'Unknown'} (₹{Number(part?.price || 0).toLocaleString('en-IN')} each)
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. Custom Fabrication Part, Service Item…"
+                    value={workOrderData.partName}
+                    onChange={(e) => setWorkOrderData({ ...workOrderData, partName: e.target.value })}
+                    style={{
+                      width: '100%', height: '2.75rem', padding: '0 0.875rem',
+                      border: '1px solid #e2e8f0', borderRadius: '0.625rem',
+                      fontSize: '0.875rem', fontWeight: 600, color: '#0f172a',
+                      background: '#f8fafc', outline: 'none'
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Assigned To + Start Date */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.5rem'
+                  }}>
+                    <User size={12} color="#6366f1" /> Assign Technician
+                  </label>
+                  <select
+                    required
+                    value={workOrderData.assignedUser}
+                    onChange={(e) => setWorkOrderData({ ...workOrderData, assignedUser: e.target.value })}
+                    style={{
+                      width: '100%', height: '2.75rem', padding: '0 0.875rem',
+                      border: '1px solid #e2e8f0', borderRadius: '0.625rem',
+                      fontSize: '0.875rem', color: '#0f172a',
+                      background: '#f8fafc', outline: 'none', cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">— Select —</option>
+                    {(productionUsers || []).map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.5rem'
+                  }}>
+                    <Calendar size={12} color="#6366f1" /> Start Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={workOrderData.startDate}
+                    onChange={(e) => setWorkOrderData({ ...workOrderData, startDate: e.target.value })}
+                    style={{
+                      width: '100%', height: '2.75rem', padding: '0 0.875rem',
+                      border: '1px solid #e2e8f0', borderRadius: '0.625rem',
+                      fontSize: '0.875rem', color: '#0f172a',
+                      background: '#f8fafc', outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Target + Dispatch Dates */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.5rem'
+                  }}>
+                    <Calendar size={12} color="#6366f1" /> Target Completion
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={workOrderData.endDate}
+                    onChange={(e) => setWorkOrderData({ ...workOrderData, endDate: e.target.value })}
+                    style={{
+                      width: '100%', height: '2.75rem', padding: '0 0.875rem',
+                      border: '1px solid #e2e8f0', borderRadius: '0.625rem',
+                      fontSize: '0.875rem', color: '#0f172a',
+                      background: '#f8fafc', outline: 'none'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.1em', color: '#64748b', marginBottom: '0.5rem'
+                  }}>
+                    <Calendar size={12} color="#6366f1" /> Dispatch Deadline
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={workOrderData.deliveryDate}
+                    onChange={(e) => setWorkOrderData({ ...workOrderData, deliveryDate: e.target.value })}
+                    style={{
+                      width: '100%', height: '2.75rem', padding: '0 0.875rem',
+                      border: '1px solid #e2e8f0', borderRadius: '0.625rem',
+                      fontSize: '0.875rem', color: '#0f172a',
+                      background: '#f8fafc', outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '0.25rem' }} />
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setWoCreationPO(null)}
+                  style={{
+                    flex: 1, height: '2.75rem', border: '1px solid #e2e8f0',
+                    borderRadius: '0.625rem', background: '#fff', color: '#475569',
+                    fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                    textTransform: 'uppercase', letterSpacing: '0.05em'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 2, height: '2.75rem', border: 'none',
+                    borderRadius: '0.625rem',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+                    color: '#fff', fontSize: '0.8rem', fontWeight: 800,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: '0.5rem',
+                    textTransform: 'uppercase', letterSpacing: '0.05em',
+                    boxShadow: '0 4px 16px rgba(15, 23, 42, 0.3)'
+                  }}
+                >
+                  <ClipboardCheck size={16} /> Confirm Work Order
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 };

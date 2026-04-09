@@ -116,6 +116,29 @@
   right: -14px;
 }
 
+.nav-category {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #475569;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0 1.25rem;
+  opacity: 1;
+  transition: opacity 0.3s, margin 0.3s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar.closed .nav-category {
+  opacity: 0;
+  margin-top: 1rem;
+  margin-bottom: 0;
+  height: 0;
+  padding: 0;
+}
+
 /* ── Nav Items ── */
 .sidebar-nav {
   flex: 1;
@@ -296,8 +319,8 @@
 }
 
 .app-header {
-  height: 80px;
-  padding: 0 2.5rem;
+  height: 68px;
+  padding: 0 clamp(1rem, 2vw, 2rem);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -461,6 +484,9 @@
 
 .content {
   flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
+  min-height: 0;           /* allow flex children to shrink */
+  padding: clamp(1rem, 2vw, 1.75rem);
+  overflow: hidden;        /* do NOT let this scroll — only the table inside scrolls */
+  display: flex;
+  flex-direction: column;
 }
